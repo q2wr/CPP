@@ -8,7 +8,7 @@
 
 * `int` `float` `double` `long long` ……
 
-* 赋值过程中的强制类型转换
+* 赋值过程中的强制类型转换 
 
   ~~~c++
   int -> bool// 0 -> false; 非0 -> true
