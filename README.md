@@ -557,9 +557,14 @@
 
 ### 1.5.5 内联函数和`constexpr`
 
-* 内联函数`inline`
+* 内联函数`inline`，编译时”内联地“展开，消除运行函数的开销；
 
-  编译时”内联地“展开，消除运行函数的开销；
+  ~~~c++
+  //没有while switch 不递归调用
+  inline int f(int a){
+      return a*2;
+  }
+  ~~~
 
 * `constexpr`函数（能用于常量表达式的函数）
 
@@ -612,7 +617,386 @@
 
 ## 1.6 类
 
+### 1.6.1 基础
 
+* 成员变量
+* `mutable`可变数据成员，`const`成员函数也可以对其修改
+* 成员函数，类内定义（隐式inline）,类外定义
+* 类型成员，类内自定义别名
+
+* `this`指针，常量指针，保存这个对象的地址，无法修改
+
+* `const`成员函数
+
+  ~~~c++
+  //给this增加底层const，表明此函数不会修改对象
+  Student::prtName()const{
+      return this->m_name;
+  }
+  ~~~
+
+* 返回`*this`对象
+
+
+
+### 1.6.2 访问控制
+
+* `struct` 默认`public`
+
+* `class`默认`private`
+
+* `friend` 使其它函数或类访问`private`成员
+
+  ~~~c++
+  friend ostream &print(ostream&,Student&);//函数做友元
+  friend class Teacher;//类做友元
+//令其它类的成员函数为友元
+  class Student;
+  struct Teacher{
+      void printStu(Student a);
+  };
+  class Student{
+      friend void Teacher::printStu(Student);
+      int m_id;
+  };
+  void Teacher::printStu(Student a){
+      cout << a.m_id;
+  }
+  ~~~
+  
+
+
+
+### 1.6.3 构造函数
+
+* 构造函数
+
+  ~~~c++
+  Student::Student() = default;//可以不定义，没初始值的成员变量默认初始化
+  Student::Student(int id):m_id(id){}//初始化顺序与定义顺序相同
+  ~~~
+
+* 委托构造函数
+
+  ~~~c++
+  Student::Student(int id,int age):m_id(id),m_age(age){}
+  Student::Student():Student(-1,0){}
+  Student::Student(int id):Student(id,0){}
+  ~~~
+
+* 类类型转换
+
+  ~~~c++
+  //构造函数提供了从其他类型向这个类型转换的方式
+  Student::f1(Student s1);
+  Student s1;
+  s1.f1(1);//int会被隐式地转换为Student
+  ~~~
+
+* `explicit`
+
+  ~~~c++
+  explicit Student::Student(int id):Student(id,0){}//抑制隐式转换
+  s1.f1(static_cast<Student>(1));//仍然可以显示转换
+  ~~~
+
+* 聚合类（没有成员函数，所有成员`public`）
+
+  ~~~c++
+  struct Stu{
+      int m_id;
+      string m_name;
+  };
+  //通过参数列表初始化，顺序同定义顺序
+  Stu s1={2021,"zhangSan"};
+  ~~~
+
+* 字面值常量类
+
+
+
+### 1.6.3 静态成员
+
+* 声明与定义
+
+  类内声明需要加`static`，类外定义不需要加。
+
+* 使用
+
+  ~~~c++
+  struct Stu{
+      static m_id;
+      static printMid(){
+          cout << m_id;
+      }
+  };
+  Stu::printMid()//使用作用域运算符进行访问
+  //通过对象或对象指针进行访问
+  ~~~
+
+* 初始化
+
+  ~~~c++
+  static constexpr int m_id = 1;//类内初始化，只能constexpr
+  ~~~
+
+  
 
 # 2 标准库
+
+## 2.1 IO库
+
+### 2.1.1 IO类
+* 
+  | 头文件     | 类型            |
+  | ---------- | --------------- |
+  | `iostream` | `istream`       |
+  | `iostream` | `ostream`       |
+  | `iostream` | `iostream`      |
+  | `fstream`  | `ifstream`      |
+  | `fstream`  | `ofstream`      |
+  | `fstream`  | `fstream`       |
+  | `sstream`  | `istringstream` |
+  | `sstream`  | `ostringstream` |
+  | `sstream`  | `stringstream`  |
+
+* IO对象无法拷贝或赋值
+
+* 刷新输出缓冲区 `endl` `ends` `flush` `unitbuf` `nounitbuf`
+
+  ~~~c++
+  cout << unitbuf;//后续所有操作都会立即刷新缓冲区
+  cout << nounitbuf;//恢复正常模式
+  ~~~
+
+
+
+### 2.1.2 文件输入输出 
+
+* `fstream`
+  ~~~c++
+  fstream fstrm;
+  fstream fstrm(s);
+  fstream fstrm(s,mode);
+  fstrm.open(s);
+  fstrm.close();
+  fstrm.is_open();
+  ~~~
+
+* `ifstream` 输入
+
+* `ofstream` 输出
+
+* `mode`
+
+  | `mode`         | 作用                   | 备注 |
+  | ------------ | ------------------------ | ------------ |
+  | `in`         | 读方式                   |  |
+  | `out`    | 写方式               | 丢弃原始数据 |
+  | `app`   | 每次写定位至末尾     | 与`out`共用避免丢失原数据 |
+  | `ate`    | 打开文件后定位至末尾 |  |
+  | `trunc`  | 截断文件             |  |
+  | `binary` | 二进制方式           |  |
+  
+  ~~~c++
+  ofstream app("file", ofstream::out|ofstream::app);
+  ~~~
+
+
+
+### 2.1.3 string流
+
+* `stringstream`
+
+  ~~~c++
+  stringstream strm;
+  stringstream strm(s);//保存s的拷贝
+  strm.str();//返回strm中string的拷贝
+  strm.strm(s);//拷贝s至strm中
+  ~~~
+
+
+
+## 2.2 顺序容器 
+
+### 2.2.1 概述
+
+* | 容器           | 备注                   |
+  | -------------- | ---------------------- |
+  | `vector`       |                        |
+  | `deque`        | 双端队列               |
+  | `list`         | 双向链表               |
+  | `forward_list` | 单向链表               |
+  | `array`        | 固定数组，无法添加删除 |
+  | `string`       |                        |
+
+* | 类型              | 备注        |
+  | ----------------- | ----------- |
+  | `iterator`        | 迭代器      |
+  | `const_iterator`  | 底层`const` |
+  | `size_type`       | 无符号      |
+  | `differnece_typr` | 有符号      |
+  | `value_type`      |             |
+  | `reference`       |             |
+  | `const_reference` |             |
+
+* | 构造函数     | 备注                          |
+  | ------------ | ----------------------------- |
+  | `C c`        | 默认构造                      |
+  | `C c1(c2)`   | 拷贝构造                      |
+  | `C c(b,e)`   | 拷贝迭代器范围（array不支持） |
+  | `C c{a,b,c}` | 列表初始化                    |
+  | `C seq(n)`   | `string`不支持                |
+  | `C seq(n,t)` |                               |
+
+* | 赋值和`swap`      | 备注               |
+  | ----------------- | ------------------ |
+  | `c1 = c2`         | 赋值               |
+  | `c1 = {a,b,c}`    | 赋值               |
+  | `a.swap(b)`       |                    |
+  | `swap(a,b)`       |                    |
+  | `seq.assign(b,e)` | 替换               |
+  | `seq.ssign(il)`   | 替换为`il`元素列表 |
+  | `seq.assign(n,t)` |                    |
+
+* | 大小           | 备注                    |
+  | -------------- | ----------------------- |
+  | `c.size()`     |                         |
+  | `c.max_size()` | `c`中可保存的最大元素数 |
+  | `c.empty()`    |                         |
+
+* | 反向容器                  | 备注    |
+  | ------------------------- | ------- |
+  | `reverse_iterator`        |         |
+  | `const_reverse_iterator`  |         |
+  | `c.rbegin()` `c.rend()`   |         |
+  | `c.crbegin()` `c.crend()` | `const` |
+
+
+
+### 2.2.2 添加元素
+
+* | 方法                    | 备注                     |
+  | ----------------------- | ------------------------ |
+  | `c.push_back(t)`        | `forward_list`不支持     |
+  | `c.emplace_back(args)`  | 原地调用构造函数         |
+  | `c.push_front(t)`       | `vector` `string` 不支持 |
+  | `c.emplace_front(args)` |                          |
+  | `c.insert(p,t)`         |                          |
+  | `c.emplace(p,args)`     |                          |
+  | `c.insert(p,n,t)`       |                          |
+  | `c.insert(p,b,e)`       | `b` `e`不能是`c`的迭代器 |
+  | `c.insert(p,il)`        | `il`是元素列表           |
+
+
+
+### 2.2.3 访问元素
+
+* | 方法        | 备注         |
+  | ----------- | ------------ |
+  | `c.back()`  | 需要判空     |
+  | `c.front()` | 需要判空     |
+  | `c[n]`      | 需要检查越界 |
+  | `c.at(n)`   | 越界抛出异常 |
+
+
+
+### 2.2.4 删除元素
+
+* | 方法            | 备注                    |
+  | --------------- | ----------------------- |
+  | `c.pop_back()`  |                         |
+  | `c.pop_front()` | `vector` `string`不支持 |
+  | `c.erase(p)`    |                         |
+  | `c.erase(b,e)`  |                         |
+  | `c.clear()`     |                         |
+  | `c.resize(n)`   | 多余被删除，不够则添加  |
+  | `c.resize(n,t)` |                         |
+
+* **添加或删除元素后`end`迭代器会失效**
+
+
+
+### 2.2.5 容器大小管理
+
+* | 方法                | 备注                     |
+  | ------------------- | ------------------------ |
+  | `c.shrink_to_fit()` | `capacity`缩小至`size()` |
+  | `c.capacity()`      |                          |
+  | `c.reserve(n)`      | 至少分配n个元素的空间    |
+
+
+
+### 2.2.6 string
+
+* | 构造方法                 | 备注                |
+  | ------------------------ | ------------------- |
+  | `string s(cp,n)`         | 数组`cp`的前n个字符 |
+  | `string s(s2,pos2)`      |                     |
+  | `string s(s2,pos2,len2)` |                     |
+
+* 子串 `s.substr(pos,n)`
+
+* | 修改方法                | 备注                           |
+  | ----------------------- | ------------------------------ |
+  | `s.insert(pos,args)`    | `pos`可以是下标或迭代器        |
+  | `s.erase(pos,len)`      | `len`省略则删光                |
+  | `s.assign(args)`        | 替换                           |
+  | `s.append(args)`        |                                |
+  | `s.replace(range,args)` | `range`为`pos`和`len`或`b` `e` |
+
+* | 搜索方法                    | 备注                         |
+  | --------------------------- | ---------------------------- |
+  | `s.find(args)`              | 第一次出现位置               |
+  | `s.rfind(args)`             | 最后一次出现位置             |
+  | `s.find_first_of(args)`     | 任意字符第一次出现位置       |
+  | `s.find_last_of(args)`      | 任意字符最后出现位置         |
+  | `s.find_first_not_of(args)` | 第一个不在`args`的字符位置   |
+  | `s.find_last_not_of(args)`  | 最后一个不在`args`的字符位置 |
+
+* | 数值转换         | 备注                                         |
+  | ---------------- | -------------------------------------------- |
+  | `to_string(val)` |                                              |
+  | `stoi(s,p,b)`    | b基数默认为10, p `size_t`类型, 起始位置默认0 |
+  | `stol(s,p,b)`    |                                              |
+  | `stoul(s,p,b)`   |                                              |
+  | `stoll(s,p,b)`   |                                              |
+  | `stof(s,p)`      |                                              |
+  | `stod(s,p)`      |                                              |
+  | `stold(s,p)`     |                                              |
+
+  ~~~c++
+  double x = stod(s.substr(s.find_first_of("+-.0123456789")))
+  ~~~
+
+### 2.2.7 容器适配器
+
+* `stack`
+
+  ~~~c++
+  s.pop();
+  s.push(item);
+  s.emplace(args)
+  s.top()
+  ~~~
+
+* `queue`
+
+  ~~~c++
+  q.pop();
+  q.front();
+  q.back();
+  q.push(item);
+  q.emplace(args);
+  ~~~
+
+* `priority_queue`
+
+  ~~~c++
+  q.top();
+  ~~~
+
+
+
+## 2.3 泛型算法
 
