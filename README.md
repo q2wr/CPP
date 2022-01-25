@@ -650,7 +650,7 @@
   ~~~c++
   friend ostream &print(ostream&,Student&);//函数做友元
   friend class Teacher;//类做友元
-//令其它类的成员函数为友元
+  //令其它类的成员函数为友元
   class Student;
   struct Teacher{
       void printStu(Student a);
