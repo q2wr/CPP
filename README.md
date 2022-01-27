@@ -529,7 +529,9 @@
   }
   ~~~
 
+* 尾置返回
 
+  `auto (parameter list) -> return type { function body }`
 
 ### 1.5.4 重载
 
@@ -969,6 +971,8 @@
   double x = stod(s.substr(s.find_first_of("+-.0123456789")))
   ~~~
 
+
+
 ### 2.2.7 容器适配器
 
 * `stack`
@@ -999,4 +1003,374 @@
 
 
 ## 2.3 泛型算法
+
+一般通过两个迭代器对容器进行操作
+
+### 2.3.1 概述
+
+* `b` `e`开始结束迭代器
+
+* | 函数                            | 备注                                                         |
+  | ------------------------------- | ------------------------------------------------------------ |
+  | `find(b,e,val)`                 | 返回第一个指向`val`的迭代器                                  |
+  | `accumulate(b,e,s)`             | `s`为初始值                                                  |
+  | `equal(b,e,b2)`                 | 比较两个容器                                                 |
+  | `fill(b,e,val)`                 | 填充                                                         |
+  | `fill_n(b,n,val)`               | `b`开始至少n个元素                                           |
+  | `back_insert(vec)`              | `vec`的后插迭代器，与与其它算法使用可向尾部添加新元素，头文件为`iterator` |
+  | `copy(b,e,b2)`                  | `b to e`拷贝至`b2`，请保证有足够空间                         |
+  | `repalce(b,e,val,val2)`         | `val`替换为`val2`                                            |
+  | `replace_copy(b,e,b2,val,val2)` | 原容器保持不变                                               |
+  | `sort(b,e)`                     | 排序                                                         |
+  | `unique(b,e)`                   | 使用前排序，返回不重复的下一个迭代器，可以将后面的元素删除   |
+
+
+
+### 2.3.2 定制操作
+
+* 向算法传递函数，谓词（可调用的表达式，返回结果作为条件值），一元与二元谓词
+
+  ~~~c++
+  bool cmp(const string &s1, const string &s2){
+      return s1.size()<s.size();
+  }
+  sort(s1.begin(),s1.end(),cmp);//按长度排序
+  ~~~
+
+* `lambda` 可认为是未命名的内联函数，可定义在函数内部
+
+  可调用对象：如果可以对其使用调用运算符`e(args)`，则是可调用的，函数、函数指针、重载了函数调用运算符的类、`lambda`表达式，可以向算法传递任何类别的可调用对象。
+
+  `[capture list](parameter list) -> return type { function body }`
+
+  参数列表和返回类型可以省略
+
+  ~~~c++
+  auto f = [] { return 42 }
+  cout << f();
+  ~~~
+
+  ~~~c++
+  sort(s.begin(),s.end(),[](const string &a,const string &b)
+       {return a.size()<b.size();})//长度排序
+  ~~~
+
+  ~~~c++
+  auto b = find_if(s.begin(),s.end(),[sz](const string &a)
+          {return a.size()>=sz})//找到第一个长度大于等于sz
+  ~~~
+
+  ~~~c++
+  for_each(b,s.end(),[](const string &s){cout << s << " ";})//打印
+  ~~~
+
+  | 捕获方式              | 备注                               |
+  | --------------------- | ---------------------------------- |
+  | `[]`                  | 空                                 |
+  | `[names]`             | 显式值捕获，添加`&`为引用捕获      |
+  | `[&]`                 | 隐式引用捕获                       |
+  | `[=]`                 | 隐式值捕获                         |
+  | `[&,identifier_list]` | 后面的用值捕获，其它为隐式引用捕获 |
+  | `[=,identifier_list]` | 后面的用引用捕获，其它为隐式值捕获 |
+
+* `lambda`返回类型
+
+  包含`return`外其它语句将被认为返回`void`，此时返回类型不可省略。
+
+
+
+### 2.3.3 参数绑定`bind`
+
+* 头文件为`functional`，接受一个可调用对象，生成一个新的可调用对象
+
+  ~~~c++
+  auto newCallable = bind(callable, arg_list);
+  ~~~
+
+  ~~~c++
+  bool checkSize(string s, int size){
+      return s.size()>=size;
+  }
+  auto newCheckSize = bind(checkSize,_1,6);//_1占位，6是参数size
+  auto b = find_if(s.begin(),s.end(),bind(checkSize,_1,sz))//将sz传入
+  ~~~
+
+* `placeholders`占位，定义在`std::placeholders`命名空间中
+
+  ~~~c++
+  f(a1,a2,a3,a4,a5);
+  auto g = bind(f,a,b,_2,c,_1);
+  g(_1,_2);
+  f(a,b,_2,c,_1);//映射关系
+  sort(s.begin(),s.end(),cmp);//顺序
+  sort(s.begin(),s.end(),bind(cmp,_2,_1));//逆序
+  ~~~
+
+* 绑定引用参数
+
+  `ref(val)`返回`val`的引用
+
+
+
+### 2.3.4 迭代器
+
+* | 插入迭代器             | 备注                               |
+  | ---------------------- | ---------------------------------- |
+  | `back_inserter(list)`  | 调用`push_back`                    |
+  | `front_inserter(list)` | 调用`push_front`                   |
+  | `inserter(list,iter)`  | 需要第二参数`iter`，插入`iter`之前 |
+
+  `*it` `it++` `++it`不会对`it`产生任何影响
+
+  使用`it = val`进行插入
+
+* `istream_iterator`迭代器
+
+  ~~~c++
+  istream_iterator<int>int_it(cin);//指定元素类型，绑定流
+  istream_iterator<int>int_eof;//默认初始化，作为尾后迭代器
+  ifstream in("afile");
+  istream_iterator<string> str_in(in)//从afile读string
+  ~~~
+
+  ~~~c++
+  //两种读取方式
+  while(int_it != int_eof){
+      vec.push_back(*int_it++);
+  }
+  vector<int>vec2(int_it,int_eof);
+  ~~~
+
+* `ostream_iterator`迭代器
+
+  ~~~c++
+  ostream_iterator<int>out(cout);
+  ostream_iterator<int>out(cout,d);输出后添加字符串d
+  ~~~
+
+
+
+## 2.4 关联容器
+
+### 2.4.1 概述
+
+* | 关键字有序 | 备注        |
+  | ---------- | ----------- |
+  | `map`      |             |
+  | `set`      |             |
+  | `multimap` | `key`可重复 |
+  | `multiset` | `key`可重复 |
+  
+  | 关键字无序           | 备注        |
+  | -------------------- | ----------- |
+  | `unordered_map`      | `hash` 无序 |
+  | `unordered_set`      | `hash` 无序 |
+  | `unordered_multimap` | `key`可重复 |
+  | `unordered_multiset` | `key`可重复 |
+
+* 有序容器 可自定义`<`，需要满足**严格弱序**
+
+  两个关键字不能同时“小于等于”对方;
+
+  若a<=b,b<=c,则a<=c;
+
+  如果两个关键字都不小于等于对方，则是等价的。
+
+* `pair`
+
+  | 操作                   | 备注                        |
+  | ---------------------- | --------------------------- |
+  | `pair<T1,T2>p`         | 初始化                      |
+  | `pair<T1,T2>p(v1,v2)`  | 初始化                      |
+  | `pair<T1,T2>p={v1,v2}` | 初始化                      |
+  | `make_pair(v1,v2)`     | 初始化                      |
+  | `p.first;p,second`     | 访问                        |
+  | `< <= > >= == !=`      | 先判断`first`在判断`second` |
+
+
+
+### 2.4.2 关联容器操作
+
+* `set`通过迭代器无法修改，**只读**
+
+* | 插入                | 备注                                    |
+  | ------------------- | --------------------------------------- |
+  | `c.insert(v)`       | 返回`pair<iterator,bool>`               |
+  | `c.emplace(args)`   | `first`为插入位置, `second`表示是否成功 |
+  | `c.insert(b,e)`     |                                         |
+  | `c,insert(il)`      | 插入元素列表                            |
+  | `c.insert(p,v)`     | `v`插到迭代器`p`处                      |
+  | `c.emplace(p,args)` |                                         |
+
+* | 删除           | 备注             |
+  | -------------- | ---------------- |
+  | `c.erase(k)`   | 返回删除的数量   |
+  | `c.erase(p)`   | 返回下一个迭代器 |
+  | `c.erase(b,e)` | 返回`e`          |
+
+* | `map`下标操作 | 备注                                       |
+  | ------------- | ------------------------------------------ |
+  | `c[k]`        | 返回`k`对应`v`, `k`不存在会新建并初始化    |
+  | `c.at(k)`     | 有参数检查，若没有，抛出`out_of_range`异常 |
+
+* | 访问元素           | 备注                           |
+  | ------------------ | ------------------------------ |
+  | `c.find(k)`        | 没有返回`end`                  |
+  | `c.count(k)`       |                                |
+  | `c.lower_bound(k)` | 第一个不小于`k`                |
+  | `c.upper_bound(k)` | 第一个大于`k`                  |
+  | `c.equal_range(k)` | 返回`pair<b,e>`，没有均是`end` |
+
+
+
+### 2.4.3 无序容器
+
+* | 桶管理               | 备注            |
+  | -------------------- | --------------- |
+  | `c.bucker_count`     | 当前桶数量      |
+  | `c.max_bucket_count` | 最多桶数        |
+  | `c.bucket_size(n)`   | 第n个桶元素数量 |
+  | `c.bucket(k)`        | 关键字`k`在的桶 |
+
+* | 桶迭代                  | 备注           |
+  | ----------------------- | -------------- |
+  | `local_iterator`        | 元素迭代器类型 |
+  | `const_local_iterator`  |                |
+  | `c.begin(n),c.end(n)`   | 桶`n`的迭代器  |
+  | `c.cbegin(n),c.cend(n)` |                |
+
+* | 哈希策略              | 备注                    |
+  | --------------------- | ----------------------- |
+  | `c.load_factor()`     | 每个桶平均元素          |
+  | `c.max_load_factor()` | `c`试图维护的平均桶大小 |
+  | `c.rehash(n)`         | 重组存储                |
+  | `c.reserve(n)`        |                         |
+
+  
+
+## 2.5 动态内存
+
+### 2.5.1 动态内存和智能指针
+
+* `shared_ptr` 头文件为`memory`
+
+  | `shared_ptr` 和 `unique_ptr`都支持 | 备注              |
+  | ---------------------------------- | ----------------- |
+  | `shared_ptr<T>sp`                  |                   |
+  | `unique_ptr<T>up`                  |                   |
+  | `p`                                | 空指针返回`false` |
+  | `*p`                               |                   |
+  | `p->mem`                           |                   |
+  | `p.get()`                          | 返回`p`中的指针   |
+  | `swap(p,q)`                        |                   |
+  | `p.swap(q)`                        |                   |
+
+  | 仅`shared_ptr`支持     | 备注                         |
+  | ---------------------- | ---------------------------- |
+  | `make_shared<T>(args)` | 根据`args`初始化对象         |
+  | `shared_ptr<T>p(q)`    | 拷贝，会增加`q`计数器        |
+  | `p=q`                  | `p` 计数减少`q`计数增加      |
+  | `p.unique()`           | 若`p.use_count()`为1返回true |
+  | `p.use_count()`        | 速度慢                       |
+
+  当最后一个`shared_ptr`被销毁时，其指向对象被销毁。
+
+* `new` `delete`
+
+  ~~~c++
+  int *pi1 = new int;//默认初始化，*pi1未定义
+  int *pi2 = new int();//值初始化，*pi2为0
+  const int *pci = new const int;//const对象
+  int *p1 = new int;//分配失败抛出std::bad_alloc
+  int *p2 = new (nothrow) int;//分配失败返回空指针
+  delete p2;
+  ~~~
+
+* `new` 和`shared_ptr`结合使用
+
+  ~~~c++
+  shared_ptr<int> p2(new int(42));
+  shared_ptr<int> p1 = new int(1024);//错误，由于这里构造函数是explicit
+  ~~~
+
+* | 定义和改变             | 备注                           |
+  | ---------------------- | ------------------------------ |
+  | `shared_ptr<T>p(q)`    | `q`必须指向`new`分配的内存     |
+  | `shared_ptr<T>p(u)`    | 从`unique_ptr`接管`u`，`u`置空 |
+  | `shared_ptr<T>p(q,d)`  | `d`为可调用对象，替代`delete`  |
+  | `shared_ptr<T>p(p2,d)` | `p`是`p2`的拷贝                |
+  | `p.reset()`            | 若只有`p`指向，会释放          |
+  | `p.reset(q)`           | `p`会指向`q`                   |
+  | `p.reset(q,d)`         | 调用`d`来释放`q`               |
+
+* 自定义释放操作（对于不是`new`分配的内存）
+
+  ~~~c++
+  void end_connection(connection *p){disconnect(*p);}
+  void f(destination &d){
+      connection c = connect(&d);
+      shared_ptr<connection>p(&c, end_connection);
+  }
+  ~~~
+
+* `unique_ptr` 只能直接初始化，不支持赋值和拷贝，销毁时，指向对象也被销毁
+
+  | 操作                  | 备注                                 |
+  | --------------------- | ------------------------------------ |
+  | `unique_ptr<T>u1`     |                                      |
+  | `unique_ptr<T,D>u2`   | 使用类型`D`的可调用对象代替`delete`  |
+  | `unique_ptr<T,D>u(d)` | 用类型`D`的可调用对象`d`代替`delete` |
+  | `u=nullptr`           | 释放，置空                           |
+  | `u.release()`         | 放弃对指针的控制，返回指针，置空     |
+  | `u.reset()`           | 释放所指对象                         |
+  | `u.reset(q)`          | 指向`q`                              |
+  | `u.reset(nullptr)`    |                                      |
+
+* `weak_ptr`  不控制所指对象生存期，指向一个由`shared_ptr`管理的对象，不改变计数
+
+  | 操作               | 备注                                               |
+  | ------------------ | -------------------------------------------------- |
+  | `weak_ptr<T>w`     |                                                    |
+  | `weak_ptr<T>w(sp)` |                                                    |
+  | `w=p`              | `p`可以是`sp`或`wp`，赋值即共享                    |
+  | `w.reset()`        | 置空                                               |
+  | `w.use_count()`    | `sp`数量                                           |
+  | `w.expired()`      | `sp`数量为0返回`true`                              |
+  | `w.lock()`         | `sp`数量为0返回空`sp`，否则返回指向`w`的对象的`sp` |
+
+### 2.5.2 动态数组
+
+* `new`和数组
+
+  ~~~c++
+  int *pia = new int[size];//指向第一个 int
+  typedef int arrT[42];//arrT表示42个int的数组类型
+  int *p = new arrT;
+  int *pia2 = new int[10]{0,1,2}//列表初始化
+  delete [] pia;//pia指向首元素
+  unique_ptr<int[]>up(new int[10]);
+  up.release();//自动使用delete
+  up[i];//访问
+  ~~~
+
+* `allocator`
+
+  | 操作                  | 备注                                                   |
+  | --------------------- | ------------------------------------------------------ |
+  | `allocator<T> a`      | 可为`T`分配内存                                        |
+  | `a.allocate(n)`       | 分配`n`个未构造内存                                    |
+  | `a.deallocat(p,n)`    | 在`p`出释放`n`个内存，和分配时保持一致，释放前需要析构 |
+  | `a.construct(p,args)` | 在`p`处构造                                            |
+  | `a.destroy(p)`        | 析构`p`所指对象                                        |
+
+  | 拷贝和填充                     | 备注         |
+  | ------------------------------ | ------------ |
+  | `uninitialized_copy(b,e,b2)`   | 拷贝至`b2`处 |
+  | `uninitialized_copy_n(b,n,b2)` | 拷贝n个      |
+  | `uninitialized_fill(b,e,t)`    | 填充为`t`    |
+  | `uninitialized_fill_n(b,n,t)`  |              |
+
+  
+
+# 3 类进阶
 
