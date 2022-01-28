@@ -1374,3 +1374,488 @@
 
 # 3 类进阶
 
+## 3.1 拷贝控制
+
+### 3.1.1 拷贝、赋值与销毁
+
+* 拷贝构造函数`Foo(const Foo&)` 如果没有引用，会**循环调用**拷贝构造函数。
+
+* 合成拷贝构造函数，当没有定义拷贝构造函数时生成，编译器从给定对象中依次将每个非`static`成员拷贝到正在创建的对象中。
+
+  类类型成员：使用其拷贝构造函数；
+
+  内置类型成员：直接拷贝；
+
+  数组：按元素逐一拷贝。
+
+* 拷贝初始化会在以下情况发生
+
+  使用`=`定义变量；
+
+  将一个对象作为实参传递个一个非引用形参；
+
+  从一个返回类型为非引用类型函数返回一个对象；
+
+  用花括号列表初始化一个数组或一个聚合类的成员；
+
+  容器通过`insert` 或`push`添加元素。
+
+* 重载拷贝赋值运算符，`operator=`可看做函数名，
+
+  ~~~c++
+  Foo& operator=(const Foo&){
+      return *this;
+  }
+  ~~~
+
+* 析构函数 `~Foo()`没有参数、返回值
+
+  构造顺序：成员顺序初始化，再执行构造函数体；
+
+  析构顺序：先执行析构函数体，在成员逆序销毁。
+
+* 使用`=default`显式地要求编译器生成合成版本。
+
+* 阻止拷贝，定义删除的函数
+
+  ~~~c++
+  NoCopy(const NoCopy&) = delete;//阻止拷贝
+  NoCopy &operator=(const NoCopy&) = delete;//阻止赋值
+  ~~~
+
+* 通过声明为`private`来阻止拷贝
+
+
+
+### 3.1.2 拷贝控制和资源管理
+
+* **行为像值的类**
+
+  ~~~c++
+  class HasPtr{
+  public:
+      HasPtr(string &s = string()):ps(new string(s)),i(0){}//直接构造
+      HasPtr(const HasPtr& p):ps(new string(*p.ps)),i(p.i){}//拷贝构造
+      //拷贝赋值
+      HasPtr& operator=(const HasPtr& rhs){
+          //先复制，再删除，如果是自赋值，颠倒顺序，会导致从已删除删除复制的行为
+          auto newp = new string(*rhs.ps);
+          delete ps;
+          ps = new p;
+          i = rhs.i;
+          return *this;
+      }
+      //析构，回收资源
+      ~HasPtr(){delete ps;}
+  private:
+      string *ps;
+      int i;  
+  }
+  ~~~
+
+* **行为像指针的类**
+
+  ~~~c++
+  //引用计数
+  class HasPtr{
+  public:
+      HasPtr(const string &s= string()):
+      	ps(new string(s)),i(0),use(new size_t(1)){}
+      HasPtr(const HasPtr &p):
+      	ps(p.ps),i(p.i),use(p.use){++*use;}
+      HasPtr& operator=(const HasPtr rhs){
+          //右侧对象计数++，左侧对象计数--
+          ++*rhs.use;
+          if(--*use == 0){
+              delete ps;
+              delete use;
+          }
+          ps = rhs.ps;
+          i = rhs.i;
+          use = rhs.use;
+          return *this;
+      } 
+      ~HasPtr(){
+          if(--*use <= 0){
+              delete ps;
+              delete use;
+          }
+      }
+  private:
+      string *ps;
+      int i;
+      size_t *use;
+  }
+  ~~~
+
+
+
+### 3.1.3 交换操作
+
+* 自定义`swap`
+
+  ~~~c++
+  class HasPtr{
+      friend void swap(HasPtr&,HasPtr&);
+  }
+  inline
+  void swap(HasPtr& lhs,HasPtr& rhs){
+  	using std::swap;
+      //不要直接使用 std::swap(lhs.ps,rhs.ps)，
+      //对于自定义类型成员，会调用std的swap，而非其自身定义的swap
+      swap(lhs.ps,rhs.ps);//交换指针
+      swap(lhs.i,rhs.i);
+  }
+  //默认 swap 多次调用赋值拷贝
+  HasPtr tem = v1;
+  v1 = v2;
+  v2 = tem;
+  
+  ~~~
+
+* 赋值运算使用`swap`
+
+  ~~~c++
+  HasPtr& operator=(HasPtr rhs){
+      //由于是值传递，返回后rhs被销毁
+      swap(*this,rhs);
+      return *this;
+  }
+  ~~~
+
+
+
+### 3.1.4 对象移动
+
+* 减少一些非必要的拷贝赋值
+
+* 右值引用`&&`
+
+  ~~~c++
+  int &&i = 42;
+  ~~~
+
+* `move`
+
+  ~~~c++
+  int &&rr3 = move(rr1);//返回rr1的右值引用
+  ~~~
+
+* 移动构造函数
+
+  ~~~c++
+  StrVec(StrVec &&s)noexcept//不抛出异常
+      :elements(s.elements),first_free(s.first_free),cap(s.cap)
+      {
+          //完全交出资源的控制权，保证析构不会出现问题
+          s.elements=s.first_free=s.cap=nullptr;
+      }
+  ~~~
+
+* 移动赋值运算符
+
+  ~~~c++
+  StrVec& operator=(StrVec &&rhs)noexcept{
+      //检测自赋值
+      if(this!=&rhs){
+          //释放资源
+          free();
+          elements = rhs.elements;
+          first_free = rhs.first_free;
+          cap = rhs.cap;
+          rhs.elements = rhs.first_free = rhs.cap = nullptr;
+      }
+      return *this;
+  }
+  ~~~
+
+
+
+## 3.2 重载运算与类型转换
+
+### 3.2.1 输入输出运算符
+
+* `<<`
+
+  ~~~c++
+  ostream &operator<<(ostream&os,const Stu &s){
+      os << s.id << " " << s.name;
+      return os;
+  }
+  ~~~
+
+* `>>`
+
+  ~~~c++
+  istream &operator>>(istream&is,const Stu &s){
+      is >> s.id >> s.name;
+      return is;
+  }
+  ~~~
+
+
+
+### 3.2.2 算术和关系运算符
+
+* 通常定义为非成员函数
+
+* `+ - * / %` 通常计算两个运算对象并得到一个新值
+
+  ~~~c++
+  Stu operator+(const Stu& lhs,const Stu& rhs){
+      Stu sum = lhs;
+      sum.id += rhs.id;
+  	sum.name += rhs.name;
+      return sum;
+  }
+  ~~~
+
+* 关系运算符，比较两个对象，返回`bool`
+
+
+
+### 3.2.3 赋值运算符
+
+* 赋值运算符
+
+  ~~~c++
+  StrVec &operator(initializer<string>);//列表赋值
+  ~~~
+
+* 复合赋值运算符 `+= -= *= /= %=`，通常定义为成员函数
+
+
+
+### 3.2.4 下标运算符
+
+* `[]`
+
+  ~~~c++
+  class StrVec{
+  public:
+      string& operator[](size_t n){
+          return elements[n];
+      }
+      const string& operator[](size_t n)const{
+          return elements[n];
+      }
+  private:
+      string *elements;
+  }
+  ~~~
+
+
+
+### 3.2.5 递增递减运算符
+
+* 前置版本，返回引用
+
+  ~~~c++
+  StrBlobPtr& operator++(){
+      check(curr,"increase");
+      ++curr;
+      return *this;
+  }
+  ~~~
+
+* 后置版本
+
+  ~~~c++
+  //增加 int 形参区分
+  StrBlobPtr operator++(int){
+      //拷贝当前状态用于返回值
+      StrBlobPtr ret = *this;
+      check(curr,"increase");
+      ++curr;
+      return ret;
+  }
+  ~~~
+
+* 显式调用
+
+  ~~~c++
+  StrBlobPtr p(a1);
+  p.operator++(0);//后置
+  p.operator++();//前置
+  ~~~
+
+
+
+### 3.2.6 成员访问运算符
+
+* `*`  `->`
+
+  ~~~c++
+  class StrBlobPtr{
+  public:
+      string& operator*()const{
+          auto p = check(curr,"dereferece past end");
+          return (*p)[curr];
+      }
+      string* operator->()const{
+          return & this->operator*();
+      }
+      
+  }
+  ~~~
+
+
+
+### 3.2.7 函数调用运算符
+
+* `()`
+
+  ~~~c++
+  struct absInt{
+      int operator()(int val)const{
+          return val < 0 ? -val : val;
+      }
+  };
+  int i = -42;
+  absInt absObj;
+  int ui = absObj(i);//调用了函数调用运算符，称为函数对象
+  ~~~
+
+* `lambda` 是函数对象
+
+* 标准库函数对象
+
+  | 算术               | 关系                 | 逻辑                |
+  | ------------------ | -------------------- | ------------------- |
+  | `plus<Type>`       | `equal_to<Type>`     | `logical_and<Type>` |
+  | `minus<Type>`      | `not_equal_to<Type>` | `logical_or<Type>`  |
+  | `multiplies<Type>` | `greater<Type>`      | `logical_not<Type>` |
+  | `divides<Type>`    | `less<Type>`         |                     |
+  | `modulus<Type>`    | `less_equal<Type>`   |                     |
+  | `negate<Type>`     |                      |                     |
+
+  ~~~c++
+  sort(s.begin(),s.end(),greater<string>());//降序排列
+  ~~~
+
+* `function`类型 头文件为`functional`
+
+  | 操作                    | 备注               |
+  | ----------------------- | ------------------ |
+  | `function<T>f`          | 存储可调用对象，空 |
+  | `function<T>f(nullptr)` | 显式构造空         |
+  | `function<T>f(obj)`     | `obj` 的副本       |
+  | `f`                     | 当做条件使用       |
+
+* 函数表（有同样的形式）
+
+  ~~~c++
+  map<string, function<int(int ,int)>>binops={
+      {"+", add},//函数指针
+      {"-", minus<int>()},//标准库函数对象
+      {"/", divide()},//用户定义的函数对象
+      {"*", [](int i, int j){return i*j;}},//未命名lambda
+      {"%", mod};//命名lambda
+  };
+  binops["+"](10,5);//调用add(10,5);
+  ~~~
+
+
+
+### 3.2.8 重载、类型转换与运算符
+
+* 类型转换运算符 `operator type() const`
+
+
+
+## 3.3 面向对象程序设计
+
+### 3.3.1 定义基类和派生类
+
+* `virtual`  虚函数
+
+  派生类会覆盖掉的函数，派生类添加`override`
+
+* `protected`
+
+  派生类可以访问，其它不能访问
+
+* 静态成员，如皋港基类定义了一个静态成员，则整个继承体系中只存在该成员的唯一定义，不管有多少派生类，每个静态成员都只存在唯一的实例。
+
+* 派生类声明 `class Blk_quote;`  不用指出派生列表
+
+* `class NoDerived final{}` `final`阻止其它类继承
+
+* 基类的指针或引用可以绑定到派生类对象上
+
+* 不存在基类向派生类的隐式类型转换
+
+
+
+### 3.3.2 虚函数
+
+* 由于虚函数的动态绑定，必须对每个虚函数都提供定义。
+
+* `override` 会使编译器帮助进行虚函数参数列表检查。
+
+* 选择指定函数
+
+  ~~~c++
+  double undiscounted = basep->Qoute::net_price(42);
+  ~~~
+
+* 抽象基类，含有纯虚函数（无需定义）。
+
+  ~~~c++
+  virtual void f() = 0;
+  ~~~
+
+
+
+### 3.3.3 访问控制和继承
+
+* 派生类成员或友元只能通过派生类对象来访问基类的受保护成员
+
+  ~~~c++
+  class Base{
+  protected:
+      int i;
+  }
+  class Sneaky:public Base{
+      friend void c1(Sneaky&);
+      friend void c2(Base&);
+  }
+  void c1(Sneaky& s){cout<<s.i;}//可以访问基类protected
+  void c2(Baes& b){cout<<b.i;}//错误，不能访问
+  ~~~
+
+* 派生类访问说明符，对派生类无影响，目的是控制派生类用户（包括派生类的派生类）
+
+* 友元关系无法继承
+
+
+
+### 3.3.4 继承中的类作用域
+
+* 派生类可以重用定义在基类或间接基类中的名字
+* 可以使用作用域运算符使用隐藏成员
+* 重载基类中的成员函数会直接覆盖隐藏，即使参数列表不同
+
+
+
+### 3.3.5 构造函数和拷贝控制
+
+* 合成拷贝控制和继承，负责使用直接基类中对应的操作对一个对象的直接基类部分进行初始化、赋值或销毁操作。
+* 派生类中删除的拷贝控制与基类的关系
+* 移动操作与继承
+* 派生类的拷贝控制成员（对自己成员和派生类对象的基类部分）
+* 派生类析构函数（对象的基类部分会被隐式销毁，所以只用对自己定义的成员操作）
+* 继承的构造函数，一个类只初始化它的直接基类，也只继承其直接基类的构造函数
+
+
+
+## 3.4 模板与泛型编程
+
+
+
+
+
+
+
+
+
